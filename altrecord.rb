@@ -24,7 +24,8 @@ module AltRecord
         @columns = []
       end
     end
-  
+    
+ 
     module ClassMethods
       def set_table_name( _table_name )
         @table_name = _table_name
@@ -38,9 +39,10 @@ module AltRecord
         @database
       end
       
-      def map_column( column_name )
+      def map_column( column_name, column_type )
         c = Column.new
         c.name = column_name
+        c.type = column_type
         @columns << c
         
         class_eval <<-END_EVAL
@@ -88,12 +90,20 @@ module AltRecord
     
     def save
       if new_record?
+        columns = self.class.columns.reject { |c| c.type == :serial }
+		returning_columns = self.class.columns.select { |c| c.type == :serial }
         sql = "INSERT INTO #{self.class.table_name} ("
-        sql << self.class.columns.map { |c| c.name }.join(", ")
+        sql << columns.map { |c| c.name }.join(", ")
         sql << ") VALUES ("
-        sql << (1..self.class.columns.size).map { |n| "$#{n}" }.join(", ")
+        sql << (1..columns.size).map { |n| "$#{n}" }.join(", ")
         sql << ")"
-        self.class.database.exec sql, self.class.columns.map { |c| send(c.name) }
+		sql << " RETURNING #{returning_columns.map { |c| c.name }.join( ', ')}" unless returning_columns.empty?
+        pg_result = self.class.database.exec sql, columns.map { |c| send(c.name) }
+		
+		@new_record = false
+		returning_columns.each_with_index do |c,i|
+          send("#{c.name}=", pg_result.getvalue(0,i))
+        end
       else
       
       end
@@ -102,6 +112,7 @@ module AltRecord
   
   class Column
     attr_accessor :name
+    attr_accessor :type
   end
   
   class DataSet
@@ -118,13 +129,14 @@ class Person
   
   set_table_name "people"
   
-  map_column "id"
-  map_column "last_name"
-  map_column "first_name"
+  map_column :id, :serial
+  map_column :last_name, :string
+  map_column :first_name, :string
 end
 
 p = Person.new
-p.id = 2
-p.last_name = "Smith"
-p.first_name = "John"
+p.last_name = "Thompson"
+p.first_name = "Bill"
 p.save
+
+puts p.inspect
