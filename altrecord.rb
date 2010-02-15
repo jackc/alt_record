@@ -63,8 +63,9 @@ module AltRecord
       def find( id )
         pg_result = @database.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name} WHERE id=$1", [ id.to_s ] )
         r = new
+        r.instance_eval { @new_record = false }
         @columns.each do |c|
-          r.send("#{c.name}=", pg_result[0][c.name])
+          r.send("#{c.name}=", c.cast_value(pg_result[0][c.name]))
         end
         r
       end
@@ -91,17 +92,17 @@ module AltRecord
     def save
       if new_record?
         columns = self.class.columns.reject { |c| c.type == :serial }
-		returning_columns = self.class.columns.select { |c| c.type == :serial }
+        returning_columns = self.class.columns.select { |c| c.type == :serial }
         sql = "INSERT INTO #{self.class.table_name} ("
         sql << columns.map { |c| c.name }.join(", ")
         sql << ") VALUES ("
         sql << (1..columns.size).map { |n| "$#{n}" }.join(", ")
         sql << ")"
-		sql << " RETURNING #{returning_columns.map { |c| c.name }.join( ', ')}" unless returning_columns.empty?
+        sql << " RETURNING #{returning_columns.map { |c| c.name }.join( ', ')}" unless returning_columns.empty?
         pg_result = self.class.database.exec sql, columns.map { |c| send(c.name) }
 		
-		@new_record = false
-		returning_columns.each_with_index do |c,i|
+        @new_record = false
+        returning_columns.each_with_index do |c,i|
           send("#{c.name}=", pg_result.getvalue(0,i))
         end
       else
@@ -113,6 +114,17 @@ module AltRecord
   class Column
     attr_accessor :name
     attr_accessor :type
+	
+    def cast_value(v)
+      case type
+      when :string
+        v.to_s
+      when :integer
+        Integer(v)
+      else
+        v
+      end
+    end
   end
   
   class DataSet
@@ -129,14 +141,11 @@ class Person
   
   set_table_name "people"
   
-  map_column :id, :serial
-  map_column :last_name, :string
-  map_column :first_name, :string
+  map_column 'id', :serial
+  map_column 'last_name', :string
+  map_column 'first_name', :string
+  map_column 'age', :integer
 end
 
-p = Person.new
-p.last_name = "Thompson"
-p.first_name = "Bill"
-p.save
-
+p = Person.find 1
 puts p.inspect
