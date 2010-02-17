@@ -79,6 +79,37 @@ module AltRecord
         
         ds
       end
+      
+      def find_for_data_set(conditions)
+        sql = "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name}"
+        params = []
+        unless conditions.empty?
+          where_sql = conditions.map { |c| c.sql }.join( " AND " )
+          n = 0
+          where_sql.gsub!("?") do
+            n += 1
+            "$#{n}"
+          end
+          conditions.each { |c| params += c.params }
+          sql << " WHERE #{where_sql}"
+        end
+        pg_result = @database.exec( sql, params )
+        pg_result.map do |row|
+          r = new
+          r.instance_eval { @new_record = false }
+          @columns.each do |c|
+            r.send("#{c.name}=", c.cast_value(row[c.name]))
+          end
+          r  
+        end
+      end
+      
+      def where( *args )
+        ds = DataSet.new(self)
+        sql = args.shift
+        ds.add_condition(SqlCondition.new(sql, args))
+        ds
+      end
     end
     
     def initialize
@@ -127,11 +158,36 @@ module AltRecord
     end
   end
   
-  class DataSet
-    attr_reader :records
+  class SqlCondition
+    attr_reader :sql
+    attr_reader :params
     
-    def initialize
-      @records = []
+    def initialize( _sql, _params )
+      @sql = _sql
+      @params = _params
+    end
+    
+  end
+  
+  class DataSet
+    def initialize( _model_class )
+      @model_class = _model_class
+      @conditions = []
+      @records = nil
+    end
+    
+    def add_condition(c)
+      @conditions.push(c)
+    end
+    
+    def where( *args )
+      new_ds = @model_class.where(*args)
+      @conditions.each { |c| new_ds.add_condition(c) }
+      new_ds
+    end
+    
+    def reload
+      @records = @model_class.find_for_data_set( @conditions )
     end
   end
 end
