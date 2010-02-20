@@ -20,19 +20,17 @@ module AltRecord
         @table_name
       end
       
-      def map_column( column_name, column_type )
-        c = Column.new
-        c.name = column_name
-        c.type = column_type
+      def map_column( column_name, column_type, options={} )
+        c = Column.new(column_name, column_type, options)
         columns << c
         
         class_eval <<-END_EVAL
-          def #{column_name}
-            @attributes["#{column_name}"]
+          def #{c.name}
+            @attributes["#{c.name}"]
           end
           
-          def #{column_name}=(v)
-            @attributes["#{column_name}"] = v
+          def #{c.name}=(v)
+            @attributes["#{c.name}"] = v
           end
         END_EVAL
       end
@@ -40,9 +38,19 @@ module AltRecord
       def columns
         @columns ||= []
       end
+      
+      def primary_key_columns
+        columns.select { |c| c.primary_key? }
+      end
             
-      def find( id )
-        pg_result = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name} WHERE id=$1", [ id.to_s ] )
+      def find( *keys )
+        sql_conditions = []
+        primary_key_columns.each_with_index do |c,i|
+          sql_conditions.push "#{c.name}=$#{i+1}"
+        end
+        sql = "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name} WHERE #{sql_conditions.join(' AND ')}"
+        
+        pg_result = connection.exec( sql, keys.map { |k| k.to_s } )
         r = new
         r.instance_eval { @new_record = false }
         @columns.each do |c|
@@ -127,14 +135,24 @@ module AltRecord
           send("#{c.name}=", pg_result.getvalue(0,i))
         end
       else
-      
+        
       end
     end
 	end
   
   class Column
-    attr_accessor :name
-    attr_accessor :type
+    attr_reader :name
+    attr_reader :type
+    
+    def initialize(name, type, options={})
+      @name = name
+      @type = type
+      @primary_key = type == :serial || options[:primary_key] 
+    end
+    
+    def primary_key?
+      @primary_key
+    end
 	
     def cast_value(v)
       case type

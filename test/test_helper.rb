@@ -9,3 +9,12 @@ class WeatherStation < AltRecord::Base
   map_column 'id', :serial
   map_column 'name', :string
 end
+
+class DailyWeatherMeasurement < AltRecord::Base
+  set_table_name "daily_weather_measurements"
+  
+  map_column 'weather_station_id', :integer, :primary_key => true
+  map_column 'date', :date, :primary_key => true
+  map_column 'low', :integer
+  map_column 'high', :integer
+end
