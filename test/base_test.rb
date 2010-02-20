@@ -24,4 +24,9 @@ class BaseTest < Test::Unit::TestCase
     ws.attributes = { :name => "New York City" }
     assert_equal "New York City", ws.name
   end
+  
+  def test_initialize_with_attributes
+    ws = WeatherStation.new :name => "London"
+    assert_equal "London", ws.name
+  end
 end

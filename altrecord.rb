@@ -94,9 +94,10 @@ module AltRecord
     end
     
 
-    def initialize
-      @attributes = {}
+    def initialize(attributes=nil)
       @new_record = true
+      @attributes = {}
+      self.attributes = attributes if attributes
     end
     
     def new_record?
