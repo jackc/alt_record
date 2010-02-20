@@ -28,11 +28,11 @@ module AltRecord
         
         class_eval <<-END_EVAL
           def #{column_name}
-            @ar_#{column_name}
+            @attributes["#{column_name}"]
           end
           
           def #{column_name}=(v)
-            @ar_#{column_name} = v
+            @attributes["#{column_name}"] = v
           end
         END_EVAL
       end
@@ -95,6 +95,7 @@ module AltRecord
     
 
     def initialize
+      @attributes = {}
       @new_record = true
     end
     
