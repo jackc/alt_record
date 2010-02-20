@@ -2,31 +2,16 @@ require 'rubygems'
 require 'pg'
 
 module AltRecord
-  class Database
- 
-    # Connection options
-    def initialize(options={})
-      @connection = PGconn.connect(options)
-    end
-  
-    def exec( sql, params=nil )
-      @connection.exec sql, params
-    end
-  
-  end
-  
-  module Base
-    def self.included(other)
-      other.extend( ClassMethods )
-      other.instance_eval do
-        @database = AltRecord::Database.new :host => 'localhost', :dbname => 'Jack', :user => 'Jack', :password => 'Jack'
-        @table_name = ""
-        @columns = []
+  class Base  
+    class << self
+      def establish_connection(options={})
+        @@connection = PGconn.connect(options)
       end
-    end
+      
+      def connection
+        @@connection
+      end
     
- 
-    module ClassMethods
       def set_table_name( _table_name )
         @table_name = _table_name
       end
@@ -35,15 +20,11 @@ module AltRecord
         @table_name
       end
       
-      def database
-        @database
-      end
-      
       def map_column( column_name, column_type )
         c = Column.new
         c.name = column_name
         c.type = column_type
-        @columns << c
+        columns << c
         
         class_eval <<-END_EVAL
           def #{column_name}
@@ -57,11 +38,11 @@ module AltRecord
       end
       
       def columns
-        @columns
+        @columns ||= []
       end
             
       def find( id )
-        pg_result = @database.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name} WHERE id=$1", [ id.to_s ] )
+        pg_result = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name} WHERE id=$1", [ id.to_s ] )
         r = new
         r.instance_eval { @new_record = false }
         @columns.each do |c|
@@ -72,7 +53,7 @@ module AltRecord
       
       def all
         ds = DataSet.new
-        rows = @database.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name}" )
+        rows = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name}" )
         rows.each do |r|        
           ds.records.push( ds, r )
         end
@@ -93,7 +74,7 @@ module AltRecord
           conditions.each { |c| params += c.params }
           sql << " WHERE #{where_sql}"
         end
-        pg_result = @database.exec( sql, params )
+        pg_result = connection.exec( sql, params )
         pg_result.map do |row|
           r = new
           r.instance_eval { @new_record = false }
@@ -112,6 +93,7 @@ module AltRecord
       end
     end
     
+
     def initialize
       @new_record = true
     end
@@ -130,7 +112,7 @@ module AltRecord
         sql << (1..columns.size).map { |n| "$#{n}" }.join(", ")
         sql << ")"
         sql << " RETURNING #{returning_columns.map { |c| c.name }.join( ', ')}" unless returning_columns.empty?
-        pg_result = self.class.database.exec sql, columns.map { |c| send(c.name) }
+        pg_result = self.class.connection.exec sql, columns.map { |c| send(c.name) }
 		
         @new_record = false
         returning_columns.each_with_index do |c,i|
@@ -187,14 +169,20 @@ module AltRecord
     end
     
     def reload
-      @records = @model_class.find_for_data_set( @conditions )
+      @records = nil
+      all
     end
+    
+    def all
+      @records ||= @model_class.find_for_data_set( @conditions )
+    end
+    
   end
 end
 
-class Person
-  include AltRecord::Base
-  
+AltRecord::Base.establish_connection :host => 'localhost', :dbname => 'Jack', :user => 'Jack', :password => 'Jack'
+
+class Person < AltRecord::Base
   set_table_name "people"
   
   map_column 'id', :serial
