@@ -18,4 +18,10 @@ class BaseTest < Test::Unit::TestCase
     ws.save
     assert ws.id
   end
+  
+  def test_attributes_assignment
+    ws = WeatherStation.new
+    ws.attributes = { :name => "New York City" }
+    assert_equal "New York City", ws.name
+  end
 end

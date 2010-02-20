@@ -103,6 +103,12 @@ module AltRecord
       @new_record
     end
     
+    def attributes=(hash)
+      hash.each do |k,v|
+        send("#{k}=", v)
+      end
+    end
+    
     def save
       if new_record?
         columns = self.class.columns.reject { |c| c.type == :serial }
