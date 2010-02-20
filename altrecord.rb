@@ -42,7 +42,7 @@ module AltRecord
       end
             
       def find( id )
-        pg_result = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name} WHERE id=$1", [ id.to_s ] )
+        pg_result = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name} WHERE id=$1", [ id.to_s ] )
         r = new
         r.instance_eval { @new_record = false }
         @columns.each do |c|
@@ -53,7 +53,7 @@ module AltRecord
       
       def all
         ds = DataSet.new
-        rows = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name}" )
+        rows = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name}" )
         rows.each do |r|        
           ds.records.push( ds, r )
         end
@@ -62,7 +62,7 @@ module AltRecord
       end
       
       def find_for_data_set(conditions)
-        sql = "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{@table_name}"
+        sql = "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name}"
         params = []
         unless conditions.empty?
           where_sql = conditions.map { |c| c.sql }.join( " AND " )
