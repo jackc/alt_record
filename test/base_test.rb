@@ -27,6 +27,17 @@ class BaseTest < Test::Unit::TestCase
     dwm.save
   end
   
+  def test_save_updates_record
+    ws = WeatherStation.new
+    ws.name = "Chicago"
+    ws.save
+    
+    ws.name = "St. Paul"
+    ws.save
+    
+    assert_equal "St. Paul", WeatherStation.find(ws.id).name
+  end
+  
   def test_attributes_assignment
     ws = WeatherStation.new
     ws.attributes = { :name => "New York City" }

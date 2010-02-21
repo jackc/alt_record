@@ -135,7 +135,22 @@ module AltRecord
           send("#{c.name}=", pg_result.getvalue(0,i))
         end
       else
+        pk_columns, non_pk_columns = self.class.columns.partition { |c| c.primary_key? }
         
+        bind_var_num = 0
+        
+        set_clause = non_pk_columns.map do |c|
+           bind_var_num += 1
+          "#{c.name}=$#{bind_var_num}"
+        end.join(", ")
+        
+        where_clause = pk_columns.map do |c|
+          bind_var_num += 1
+          "#{c.name}=$#{bind_var_num}"
+        end.join(' AND ')
+        
+        sql = "UPDATE #{self.class.table_name} SET #{set_clause} WHERE #{where_clause}"
+        self.class.connection.exec( sql, (non_pk_columns+pk_columns).map { |c| send(c.name).to_s } )
       end
     end
 	end
