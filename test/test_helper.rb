@@ -1,5 +1,5 @@
 require 'test/unit'
-require 'altrecord'
+require 'alt_record'
 
 AltRecord::Base.establish_connection :host => 'localhost', :dbname => 'Jack', :user => 'Jack', :password => 'Jack'
 
