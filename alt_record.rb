@@ -69,17 +69,17 @@ module AltRecord
         ds
       end
       
-      def find_for_data_set(conditions)
+      def find_for_data_set(filters)
         sql = "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name}"
         params = []
-        unless conditions.empty?
-          where_sql = conditions.map { |c| c.sql }.join( " AND " )
+        unless filters.empty?
+          where_sql = filters.map { |c| c.sql }.join( " AND " )
           n = 0
           where_sql.gsub!("?") do
             n += 1
             "$#{n}"
           end
-          conditions.each { |c| params += c.params }
+          filters.each { |c| params += c.params }
           sql << " WHERE #{where_sql}"
         end
         pg_result = connection.exec( sql, params )
@@ -96,7 +96,7 @@ module AltRecord
       def where( *args )
         ds = DataSet.new(self)
         sql = args.shift
-        ds.add_condition(SqlCondition.new(sql, args))
+        ds.filters.push(SqlFilter.new(sql, args))
         ds
       end
     end
@@ -181,7 +181,7 @@ module AltRecord
     end
   end
   
-  class SqlCondition
+  class SqlFilter
     attr_reader :sql
     attr_reader :params
     
@@ -193,19 +193,18 @@ module AltRecord
   end
   
   class DataSet
+    attr_reader :model_class
+    attr_reader :filters
+
     def initialize( _model_class )
       @model_class = _model_class
-      @conditions = []
+      @filters = []
       @records = nil
-    end
-    
-    def add_condition(c)
-      @conditions.push(c)
     end
     
     def where( *args )
       new_ds = @model_class.where(*args)
-      @conditions.each { |c| new_ds.add_condition(c) }
+      @filters.each { |c| new_ds.filters.push(c) }
       new_ds
     end
     
@@ -215,7 +214,7 @@ module AltRecord
     end
     
     def all
-      @records ||= @model_class.find_for_data_set( @conditions )
+      @records ||= @model_class.find_for_data_set( @filters )
     end
     
   end
