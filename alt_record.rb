@@ -190,6 +190,9 @@ module AltRecord
       @params = _params
     end
     
+    def ==(other)
+      self.sql == other.sql && self.params == other.params
+    end    
   end
   
   class DataSet
