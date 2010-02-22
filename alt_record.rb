@@ -220,6 +220,20 @@ module AltRecord
       @records ||= @model_class.find_for_data_set( @filters )
     end
     
+    def method_missing(method, *args)
+      if method.to_s =~ /(.*)_(cs|ci)\z/
+        column_name, suffix = $1, $2
+        column = model_class.columns.find { |c| c.name == column_name }
+        case suffix
+        when "cs"
+          where("#{column_name}=?", args.first)
+        when "ci"
+          where("LOWER(#{column_name})=LOWER(?)", args.first)
+        end
+      else
+        super
+      end
+    end    
   end
 end
 
