@@ -2,6 +2,12 @@ require 'test/test_helper'
 
 class DataSetTest < Test::Unit::TestCase
 
+  def test_initialize_with_filters
+    filters = [ AltRecord::SqlFilter.new("name=?", ["New York"]) ]
+    ws = AltRecord::DataSet.new(WeatherStation, :filters => filters)
+    assert_equal filters, ws.filters
+  end
+
   def test_model_class
     assert_equal WeatherStation, AltRecord::DataSet.new(WeatherStation).model_class
   end

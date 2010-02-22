@@ -196,15 +196,15 @@ module AltRecord
     attr_reader :model_class
     attr_reader :filters
 
-    def initialize( _model_class )
+    def initialize( _model_class, options={} )
       @model_class = _model_class
-      @filters = []
+      @filters = options[:filters] ? options[:filters].clone : []
       @records = nil
     end
     
     def where( *args )
       new_ds = @model_class.where(*args)
-      @filters.each { |c| new_ds.filters.push(c) }
+      filters.each { |c| new_ds.filters.push(c) }
       new_ds
     end
     
