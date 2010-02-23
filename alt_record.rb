@@ -21,7 +21,18 @@ module AltRecord
       end
       
       def map_column( column_name, column_type, options={} )
-        c = Column.new(column_name, column_type, options)
+        c = case column_type
+            when :serial
+              SerialColumn.new(column_name, options)
+            when :integer
+              IntegerColumn.new(column_name, options)
+            when :string
+              StringColumn.new(column_name, options)
+            when :date
+              DateColumn.new(column_name, options)
+            else
+              raise ArgumentError, "Bad column type: #{column_type}"
+            end
         columns << c
         
         class_eval <<-END_EVAL
@@ -120,8 +131,8 @@ module AltRecord
     
     def save
       if new_record?
-        columns = self.class.columns.reject { |c| c.type == :serial }
-        returning_columns = self.class.columns.select { |c| c.type == :serial }
+        columns = self.class.columns.reject { |c| c.kind_of?(SerialColumn) }
+        returning_columns = self.class.columns.select { |c| c.kind_of?(SerialColumn) }
         sql = "INSERT INTO #{self.class.table_name} ("
         sql << columns.map { |c| c.name }.join(", ")
         sql << ") VALUES ("
@@ -157,12 +168,10 @@ module AltRecord
   
   class Column
     attr_reader :name
-    attr_reader :type
     
-    def initialize(name, type, options={})
+    def initialize(name, options={})
       @name = name
-      @type = type
-      @primary_key = type == :serial || options[:primary_key] 
+      @primary_key = options[:primary_key] 
     end
     
     def primary_key?
@@ -170,14 +179,31 @@ module AltRecord
     end
 	
     def cast_value(v)
-      case type
-      when :string
-        v.to_s
-      when :integer
-        Integer(v)
-      else
-        v
-      end
+      raise "not implemented"
+    end
+  end
+  
+  class IntegerColumn < Column
+    def cast_value(v)
+      Integer(v)
+    end
+  end
+  
+  class SerialColumn < IntegerColumn
+    def primary_key?
+      true
+    end
+  end
+  
+  class StringColumn < Column
+    def cast_value(v)
+      v.to_s
+    end    
+  end
+  
+  class DateColumn < Column
+    def cast_value(v)
+      Date.parse(v)
     end
   end
   
