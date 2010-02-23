@@ -107,7 +107,7 @@ module AltRecord
       def where( *args )
         ds = DataSet.new(self)
         sql = args.shift
-        ds.filters.push(SqlFilter.new(sql, args))
+        ds.filters.push(SqlFilter.new(sql, *args))
         ds
       end
     end
@@ -181,6 +181,34 @@ module AltRecord
     def cast_value(v)
       raise "not implemented"
     end
+    
+    def equal_filter(v)
+      SqlFilter.new("#{name}=?", v)
+    end
+    
+    def in_filter(*values)
+      SqlFilter.new("#{name} IN(#{(['?'] * values.size).join(', ')})", *values)
+    end
+    
+    def between_filter(a, b)
+      SqlFilter.new("#{name} BETWEEN ? AND ?", a, b)
+    end
+    
+    def greater_than_filter(v)
+      SqlFilter.new("#{name} > ?", v)
+    end
+    
+    def greater_than_or_equal_filter(v)
+      SqlFilter.new("#{name} >= ?", v)
+    end
+    
+    def less_than_filter(v)
+      SqlFilter.new("#{name} < ?", v)
+    end
+    
+    def less_than_or_equal_filter(v)
+      SqlFilter.new("#{name} <= ?", v)
+    end
   end
   
   class IntegerColumn < Column
@@ -211,7 +239,7 @@ module AltRecord
     attr_reader :sql
     attr_reader :params
     
-    def initialize( _sql, _params )
+    def initialize( _sql, *_params )
       @sql = _sql
       @params = _params
     end
