@@ -1,6 +1,12 @@
 require 'rubygems'
 require 'pg'
 
+require 'alt_record/column'
+require 'alt_record/string_column'
+require 'alt_record/integer_column'
+require 'alt_record/serial_column'
+require 'alt_record/date_column'
+
 module AltRecord
   class Base  
     class << self
@@ -165,75 +171,6 @@ module AltRecord
       end
     end
 	end
-  
-  class Column
-    attr_reader :name
-    
-    def initialize(name, options={})
-      @name = name
-      @primary_key = options[:primary_key] 
-    end
-    
-    def primary_key?
-      @primary_key
-    end
-	
-    def cast_value(v)
-      raise "not implemented"
-    end
-    
-    def equal_filter(v)
-      SqlFilter.new("#{name}=?", v)
-    end
-    
-    def in_filter(*values)
-      SqlFilter.new("#{name} IN(#{(['?'] * values.size).join(', ')})", *values)
-    end
-    
-    def between_filter(a, b)
-      SqlFilter.new("#{name} BETWEEN ? AND ?", a, b)
-    end
-    
-    def greater_than_filter(v)
-      SqlFilter.new("#{name} > ?", v)
-    end
-    
-    def greater_than_or_equal_filter(v)
-      SqlFilter.new("#{name} >= ?", v)
-    end
-    
-    def less_than_filter(v)
-      SqlFilter.new("#{name} < ?", v)
-    end
-    
-    def less_than_or_equal_filter(v)
-      SqlFilter.new("#{name} <= ?", v)
-    end
-  end
-  
-  class IntegerColumn < Column
-    def cast_value(v)
-      Integer(v)
-    end
-  end
-  
-  class SerialColumn < IntegerColumn
-    def primary_key?
-      true
-    end
-  end
-  
-  class StringColumn < Column
-    def cast_value(v)
-      v.to_s
-    end    
-  end
-  
-  class DateColumn < Column
-    def cast_value(v)
-      Date.parse(v)
-    end
-  end
   
   class SqlFilter
     attr_reader :sql
