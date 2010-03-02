@@ -8,6 +8,9 @@ require 'alt_record/serial_column'
 require 'alt_record/date_column'
 
 module AltRecord
+  class LazyLoadedValue
+  end
+
   class Base  
     class << self
       def establish_connection(options={})
@@ -43,6 +46,10 @@ module AltRecord
         
         class_eval <<-END_EVAL
           def #{c.name}
+            if @attributes["#{c.name}"] == LazyLoadedValue
+              column = self.class.columns[#{columns.size-1}]
+              self.class.lazy_load_column_values(column, data_set)
+            end
             @attributes["#{c.name}"]
           end
           
@@ -60,73 +67,95 @@ module AltRecord
         columns.select { |c| c.primary_key? }
       end
             
-      def find( *keys )
+      def find( *keys_and_options )
+        options = keys_and_options.pop if keys_and_options.last.kind_of?(Hash)
+        keys = keys_and_options
+        
         sql_conditions = []
         primary_key_columns.each_with_index do |c,i|
           sql_conditions.push "#{c.name}=$#{i+1}"
         end
-        sql = "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name} WHERE #{sql_conditions.join(' AND ')}"
+        sql = "SELECT #{columns_to_select(options).map { |c| c.name }.join( ", " )} FROM #{table_name} WHERE #{sql_conditions.join(' AND ')}"
         
         pg_result = connection.exec( sql, keys.map { |k| k.to_s } )
-        r = new
-        r.instance_eval { @new_record = false }
+        from_postgresql_hash(pg_result[0])
+      end
+      
+      def find_all(options={})
+        pg_result = connection.exec( "SELECT #{columns_to_select(options).map { |c| c.name }.join( ", " )} FROM #{table_name}" )
+        data_set = pg_result.map do |pg_hash|
+          from_postgresql_hash(pg_hash)
+        end
+        data_set.each do |r|
+          r.instance_eval { @data_set = data_set }
+        end
+
+        data_set
+      end
+
+      def columns_to_select(options={})
+        columns.reject { |c| c.lazy }
+      end
+
+      def from_postgresql_hash(hash)
+        record = new
+        record.instance_eval { @new_record = false }
         @columns.each do |c|
-          r.send("#{c.name}=", c.cast_value(pg_result[0][c.name]))
-        end
-        r
-      end
-      
-      def all
-        ds = DataSet.new
-        rows = connection.exec( "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name}" )
-        rows.each do |r|        
-          ds.records.push( ds, r )
-        end
-        
-        ds
-      end
-      
-      def find_for_data_set(filters)
-        sql = "SELECT #{@columns.map { |c| c.name }.join( ", " )} FROM #{table_name}"
-        params = []
-        unless filters.empty?
-          where_sql = filters.map { |c| c.sql }.join( " AND " )
-          n = 0
-          where_sql.gsub!("?") do
-            n += 1
-            "$#{n}"
+          if hash.has_key?(c.name)
+            record.send("#{c.name}=", c.cast_value(hash[c.name]))
+          else
+            record.send("#{c.name}=", LazyLoadedValue)
           end
-          filters.each { |c| params += c.params }
-          sql << " WHERE #{where_sql}"
         end
-        pg_result = connection.exec( sql, params )
-        pg_result.map do |row|
-          r = new
-          r.instance_eval { @new_record = false }
-          @columns.each do |c|
-            r.send("#{c.name}=", c.cast_value(row[c.name]))
-          end
-          r  
-        end
+        record
       end
-      
-      def where( *args )
-        ds = DataSet.new(self)
-        sql = args.shift
-        ds.filters.push(SqlFilter.new(sql, *args))
-        ds
+
+      def lazy_load_column_values(column, data_set)
+        where_strings = []
+        sql_params = []
+
+        data_set.each do |record|
+          s = []
+          primary_key_columns.each do |c|
+            s.push("#{c.name}=$#{sql_params.size+1}")
+            sql_params.push(record.send(c.name))
+          end
+          where_strings.push( s.join(" AND ") )
+        end
+
+        where_sql = where_strings.map { |s| "(#{s})"}.join(" OR ")
+
+        select_sql = primary_key_columns.map { |c| c.name }.join(", ")
+        select_sql << ", #{column.name}"
+
+        pg_result = connection.exec("SELECT #{select_sql} FROM #{table_name} WHERE #{where_sql}", sql_params)
+        pg_result.each do |hash|
+          record = data_set.detect do |r|
+            primary_key_columns.all? do |c|
+              r.send(c.name) == c.cast_value(hash[c.name])
+            end
+          end
+
+          record.send("#{column.name}=", column.cast_value(hash[column.name]))
+        end
       end
     end
-    
+
+    attr_reader :data_set
 
     def initialize(attributes=nil)
       @new_record = true
       @attributes = {}
+      @data_set = nil
       self.attributes = attributes if attributes
     end
     
     def new_record?
       @new_record
+    end
+
+    def attributes
+      @attributes
     end
     
     def attributes=(hash)
@@ -185,47 +214,6 @@ module AltRecord
       self.sql == other.sql && self.params == other.params
     end    
   end
-  
-  class DataSet
-    attr_reader :model_class
-    attr_reader :filters
-
-    def initialize( _model_class, options={} )
-      @model_class = _model_class
-      @filters = options[:filters] ? options[:filters].clone : []
-      @records = nil
-    end
-    
-    def where( *args )
-      new_ds = @model_class.where(*args)
-      filters.each { |c| new_ds.filters.push(c) }
-      new_ds
-    end
-    
-    def reload
-      @records = nil
-      all
-    end
-    
-    def all
-      @records ||= @model_class.find_for_data_set( @filters )
-    end
-    
-    def method_missing(method, *args)
-      if method.to_s =~ /(.*)_(cs|ci)\z/
-        column_name, suffix = $1, $2
-        column = model_class.columns.find { |c| c.name == column_name }
-        case suffix
-        when "cs"
-          where("#{column_name}=?", args.first)
-        when "ci"
-          where("LOWER(#{column_name})=LOWER(?)", args.first)
-        end
-      else
-        super
-      end
-    end    
-  end
 end
 
 AltRecord::Base.establish_connection :host => 'localhost', :dbname => 'Jack', :user => 'Jack', :password => 'Jack'
@@ -236,7 +224,7 @@ class Person < AltRecord::Base
   map_column 'id', :serial
   map_column 'last_name', :string
   map_column 'first_name', :string
-  map_column 'age', :integer
+  map_column 'age', :integer, :lazy => true
 end
 
 p = Person.find 1

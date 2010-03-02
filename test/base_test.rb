@@ -66,4 +66,23 @@ class BaseTest < Test::Unit::TestCase
     
     found_dwm = DailyWeatherMeasurement.find ws.id, Date.civil(2000,1,1)
   end
+
+  def test_find_all
+    assert WeatherStation.find_all.all? { |ws| ws.kind_of?(WeatherStation) }
+  end
+
+  def test_find_all_with_lazy_load
+    weather_stations = WeatherStation.find_all
+    assert weather_stations.all? { |ws| ws.attributes["notes"] == AltRecord::LazyLoadedValue }
+    assert weather_stations.first.notes != AltRecord::LazyLoadedValue
+    assert weather_stations.none? { |ws| ws.attributes["notes"] == AltRecord::LazyLoadedValue }
+  end
+
+  def test_find_all_with_lazy_load_with_composite_primary_key
+    daily_weather_measurements = DailyWeatherMeasurement.find_all
+    assert daily_weather_measurements.all? { |dwm| dwm.attributes["notes"] == AltRecord::LazyLoadedValue }
+    assert daily_weather_measurements.first.notes != AltRecord::LazyLoadedValue
+    assert daily_weather_measurements.none? { |dwm| dwm.attributes["notes"] == AltRecord::LazyLoadedValue }
+  end
+
 end

@@ -8,6 +8,7 @@ class WeatherStation < AltRecord::Base
   
   map_column 'id', :serial
   map_column 'name', :string
+  map_column 'notes', :string, :lazy => true
 end
 
 class DailyWeatherMeasurement < AltRecord::Base
@@ -17,4 +18,5 @@ class DailyWeatherMeasurement < AltRecord::Base
   map_column 'date', :date, :primary_key => true
   map_column 'low', :integer
   map_column 'high', :integer
+  map_column 'notes', :string, :lazy => true
 end

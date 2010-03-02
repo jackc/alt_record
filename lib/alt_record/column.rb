@@ -1,10 +1,12 @@
 module AltRecord
   class Column
     attr_reader :name
+    attr_reader :lazy
 
     def initialize(name, options={})
       @name = name
       @primary_key = options[:primary_key]
+      @lazy = options[:lazy]
     end
 
     def primary_key?
