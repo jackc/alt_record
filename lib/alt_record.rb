@@ -8,6 +8,8 @@ require 'alt_record/serial_column'
 require 'alt_record/date_column'
 
 module AltRecord
+  VERSION = '0.0.2'
+
   class LazyLoadedValue
   end
 
@@ -215,17 +217,3 @@ module AltRecord
     end    
   end
 end
-
-AltRecord::Base.establish_connection :host => 'localhost', :dbname => 'Jack', :user => 'Jack', :password => 'Jack'
-
-class Person < AltRecord::Base
-  set_table_name "people"
-  
-  map_column 'id', :serial
-  map_column 'last_name', :string
-  map_column 'first_name', :string
-  map_column 'age', :integer, :lazy => true
-end
-
-p = Person.find 1
-puts p.inspect
